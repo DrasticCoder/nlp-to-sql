@@ -3,14 +3,14 @@ import { supabase } from '@/lib/supabaseClient';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const body = await request.json();
     const { title, completed } = body;
-    const { id } = params;
+    const { id } = await params;
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
     if (completed !== undefined) updateData.completed = completed;
 
@@ -29,7 +29,7 @@ export async function PUT(
     }
 
     return NextResponse.json({ data });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },
@@ -39,10 +39,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const { error } = await supabase.from('todos').delete().eq('id', id);
 
@@ -54,7 +54,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ message: 'Todo deleted successfully' });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

@@ -121,11 +121,12 @@ export const TodoList: React.FC<TodoListProps> = ({
                   </div>
                 ))}
 
-                {todos.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No todos yet. Add one using natural language!</p>
+                {todos.length === 0 && !loading && (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No todos yet. Add one to get started!</p>
                     <p className="text-sm mt-2">
-                      Try: "Create a task to buy groceries"
+                      You can add todos manually or use the chat interface to
+                      say &quot;add a new task&quot;
                     </p>
                   </div>
                 )}

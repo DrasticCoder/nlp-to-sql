@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ChatInterface } from '@/components/chat-interface';
 import { TodoList } from '@/components/todo-list';
 import { Todo } from '@/components/todo-form';
-import { TodoService } from '@/lib/todoService';
+import { todoService } from '@/lib/todoService';
 
 const Page = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -17,8 +17,8 @@ const Page = () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await TodoService.fetchTodos();
-        setTodos(data);
+        const data = await todoService.getAllTodos();
+        setTodos(data as Todo[]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch todos');
       } finally {
@@ -31,8 +31,20 @@ const Page = () => {
 
   const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
     try {
-      const newTodo = await TodoService.createTodo(todoData);
-      setTodos((prev) => [newTodo, ...prev]);
+      const result = await todoService.createTodo(todoData.title);
+      if (
+        result &&
+        typeof result === 'object' &&
+        'id' in result &&
+        'title' in result &&
+        'completed' in result &&
+        'createdAt' in result
+      ) {
+        const newTodo: Todo = result as Todo;
+        setTodos((prev: Todo[]) => [newTodo, ...prev]);
+      } else {
+        throw new Error('Invalid todo returned from service');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add todo');
     }
@@ -40,9 +52,15 @@ const Page = () => {
 
   const handleUpdateTodo = async (updatedTodo: Todo) => {
     try {
-      const updated = await TodoService.updateTodo(updatedTodo);
+      const updated = await todoService.updateTodo(
+        updatedTodo.id,
+        updatedTodo.title,
+        updatedTodo.completed,
+      );
       setTodos((prev) =>
-        prev.map((todo) => (todo.id === updated.id ? updated : todo)),
+        prev.map((todo) =>
+          todo.id === (updated as Todo).id ? (updated as Todo) : todo,
+        ),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update todo');
@@ -51,7 +69,7 @@ const Page = () => {
 
   const handleDeleteTodo = async (id: string) => {
     try {
-      await TodoService.deleteTodo(id);
+      await todoService.deleteTodo(id);
       setTodos((prev) => prev.filter((todo) => todo.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete todo');
@@ -63,8 +81,10 @@ const Page = () => {
     if (!target) return;
 
     try {
-      const updated = await TodoService.toggleTodo(id, !target.completed);
-      setTodos((prev) => prev.map((todo) => (todo.id === id ? updated : todo)));
+      const updated = await todoService.toggleTodo(id, !target.completed);
+      setTodos((prev: Todo[]) =>
+        prev.map((todo) => (todo.id === id ? (updated as Todo) : todo)),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to toggle todo');
     }
@@ -74,15 +94,24 @@ const Page = () => {
     console.log('Processing command:', command);
   };
 
-  const handleDataUpdate = (data: any) => {
+  const handleDataUpdate = (data: unknown) => {
     // Update todos list when chat interface reports successful operations
-    if (data && data.todos) {
-      const mappedTodos: Todo[] = data.todos.map((todo: any) => ({
-        id: todo.id,
-        title: todo.title,
-        completed: todo.completed,
-        createdAt: new Date(todo.created_at),
-      }));
+    if (data && typeof data === 'object' && data !== null && 'todos' in data) {
+      const todoData = data as { todos: unknown[] };
+      const mappedTodos: Todo[] = todoData.todos.map((todo: unknown) => {
+        const todoItem = todo as {
+          id: string;
+          title: string;
+          completed: boolean;
+          created_at: string;
+        };
+        return {
+          id: todoItem.id,
+          title: todoItem.title,
+          completed: todoItem.completed,
+          createdAt: new Date(todoItem.created_at),
+        };
+      });
       setTodos(mappedTodos);
     }
   };

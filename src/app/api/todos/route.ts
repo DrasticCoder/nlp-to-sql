@@ -3,20 +3,13 @@ import { supabase } from '@/lib/supabaseClient';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('todos')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch todos' },
-        { status: 500 },
-      );
-    }
-
     return NextResponse.json({ data });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },
@@ -27,27 +20,20 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, completed = false } = body;
+    const { title } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('todos')
-      .insert([{ title, completed }])
+      .insert([{ title, completed: false }])
       .select()
       .single();
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to create todo' },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ data }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({ data });
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

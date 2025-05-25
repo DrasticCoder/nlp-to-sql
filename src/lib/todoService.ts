@@ -1,137 +1,97 @@
-import { Todo } from '@/components/todo-form';
+import { supabase } from './supabaseClient';
 
-export interface TodoResponse {
-  data?: any;
-  error?: string;
-}
-
-export class TodoService {
-  private static baseUrl = '/api/todos';
-
-  static async fetchTodos(): Promise<Todo[]> {
+export const todoService = {
+  async getAllTodos(): Promise<unknown> {
     try {
-      const response = await fetch(this.baseUrl);
-      const result: TodoResponse = await response.json();
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to fetch todos');
+      if (error) {
+        throw new Error(error.message);
       }
 
-      return (result.data || []).map((todo: any) => ({
-        id: todo.id,
-        title: todo.title,
-        completed: todo.completed,
-        createdAt: new Date(todo.created_at),
-      }));
+      return data;
     } catch (error) {
       console.error('Error fetching todos:', error);
       throw error;
     }
-  }
+  },
 
-  static async createTodo(
-    todoData: Omit<Todo, 'id' | 'createdAt'>,
-  ): Promise<Todo> {
+  async createTodo(title: string): Promise<unknown> {
     try {
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(todoData),
-      });
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{ title, completed: false }])
+        .select()
+        .single();
 
-      const result: TodoResponse = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to create todo');
+      if (error) {
+        throw new Error(error.message);
       }
 
-      return {
-        id: result.data.id,
-        title: result.data.title,
-        completed: result.data.completed,
-        createdAt: new Date(result.data.created_at),
-      };
+      return data;
     } catch (error) {
       console.error('Error creating todo:', error);
       throw error;
     }
-  }
+  },
 
-  static async updateTodo(todo: Todo): Promise<Todo> {
+  async updateTodo(
+    id: string,
+    title: string,
+    completed: boolean,
+  ): Promise<unknown> {
     try {
-      const response = await fetch(`${this.baseUrl}/${todo.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: todo.title,
-          completed: todo.completed,
-        }),
-      });
+      const { data, error } = await supabase
+        .from('todos')
+        .update({ title, completed })
+        .match({ id })
+        .select()
+        .single();
 
-      const result: TodoResponse = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to update todo');
+      if (error) {
+        throw new Error(error.message);
       }
 
-      return {
-        id: result.data.id,
-        title: result.data.title,
-        completed: result.data.completed,
-        createdAt: new Date(result.data.created_at),
-      };
+      return data;
     } catch (error) {
       console.error('Error updating todo:', error);
       throw error;
     }
-  }
+  },
 
-  static async deleteTodo(id: string): Promise<void> {
+  async deleteTodo(id: string): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/${id}`, {
-        method: 'DELETE',
-      });
+      const { error } = await supabase.from('todos').delete().match({ id });
 
-      const result: TodoResponse = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to delete todo');
+      if (error) {
+        throw new Error(error.message);
       }
     } catch (error) {
       console.error('Error deleting todo:', error);
       throw error;
     }
-  }
+  },
 
-  static async toggleTodo(id: string, completed: boolean): Promise<Todo> {
+  async toggleTodo(id: string, completed: boolean): Promise<unknown> {
     try {
-      const response = await fetch(`${this.baseUrl}/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ completed }),
-      });
+      const { data, error } = await supabase
+        .from('todos')
+        .update({ completed })
+        .match({ id })
+        .select()
+        .single();
 
-      const result: TodoResponse = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error || 'Failed to toggle todo');
+      if (error) {
+        throw new Error(error.message);
       }
 
-      return {
-        id: result.data.id,
-        title: result.data.title,
-        completed: result.data.completed,
-        createdAt: new Date(result.data.created_at),
-      };
+      return data;
     } catch (error) {
       console.error('Error toggling todo:', error);
       throw error;
     }
-  }
-}
+  },
+};

@@ -18,7 +18,7 @@ interface QueryResponse {
   success: boolean;
   message: string;
   sql?: string;
-  data?: any;
+  data?: unknown;
   error?: string;
   milestones: string[];
   queries?: {
@@ -259,7 +259,7 @@ SQL Query:`;
 
 function extractTaskDescription(query: string): string {
   // Remove common command words and extract the actual task
-  let cleaned = query
+  const cleaned = query
     .toLowerCase()
     .replace(
       /^(create|add|new|make|insert)\s+(a\s+)?(task|todo|item)\s+(for\s+me\s+)?(to\s+)?/i,
@@ -275,11 +275,12 @@ function extractTaskDescription(query: string): string {
     cleaned.startsWith('call ')
   ) {
     // For action verbs, keep as is
-    cleaned = cleaned;
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
   } else if (cleaned.includes(' to ')) {
     // Extract after "to" if present
     const toIndex = cleaned.indexOf(' to ');
-    cleaned = cleaned.substring(toIndex + 4);
+    const result = cleaned.substring(toIndex + 4);
+    return result.charAt(0).toUpperCase() + result.slice(1);
   }
 
   // Capitalize first letter for better presentation
@@ -436,7 +437,7 @@ Respond with JSON only - no additional text:
 
 function extractCleanSQL(rawText: string): string {
   // Remove markdown formatting
-  let cleaned = rawText
+  const cleaned = rawText
     .replace(/```sql\n?/gi, '')
     .replace(/```\n?/g, '')
     .trim();
@@ -487,7 +488,7 @@ function extractCleanSQL(rawText: string): string {
 async function executeSQLQuery(
   sqlQuery: string,
   milestones: string[],
-): Promise<any> {
+): Promise<unknown> {
   // Clean and normalize the SQL query
   const cleanedSQL = extractCleanSQL(sqlQuery);
 
@@ -542,7 +543,7 @@ async function executeSQLQuery(
 async function handleInsertQuery(
   sql: string,
   milestones: string[],
-): Promise<any> {
+): Promise<unknown> {
   // Parse INSERT statement: INSERT INTO todos (title, completed) VALUES ('title', false)
   const insertPattern =
     /INSERT INTO todos\s*\([^)]+\)\s*VALUES\s*\(\s*'([^']+)'\s*,\s*(true|false)\s*\)/i;
@@ -577,7 +578,7 @@ async function handleInsertQuery(
 async function handleSelectQuery(
   sql: string,
   milestones: string[],
-): Promise<any> {
+): Promise<unknown> {
   milestones.push(`🔎 Executing SELECT query`);
 
   // Parse SELECT statement to handle WHERE clauses
@@ -640,7 +641,7 @@ async function handleSelectQuery(
 async function handleUpdateQuery(
   sql: string,
   milestones: string[],
-): Promise<any> {
+): Promise<unknown> {
   // Parse UPDATE statement: UPDATE todos SET completed = true WHERE ...
   // More robust pattern to handle quoted values properly
   const updatePattern =
@@ -659,11 +660,11 @@ async function handleUpdateQuery(
   }
 
   const column = match[1];
-  let rawValue = match[2];
+  const rawValue = match[2];
   const whereClause = match[3];
 
   // Parse value with proper typing
-  let value: any;
+  let value: string | boolean;
   if (rawValue === 'true' || rawValue === 'false') {
     value = rawValue === 'true';
   } else {
@@ -739,7 +740,7 @@ async function handleUpdateQuery(
 async function handleDeleteQuery(
   sql: string,
   milestones: string[],
-): Promise<any> {
+): Promise<unknown> {
   // Parse DELETE statement: DELETE FROM todos WHERE ...
   const deletePattern = /DELETE FROM todos(?:\s+WHERE\s+(.+))?/i;
   const match = sql.match(deletePattern);
@@ -798,7 +799,11 @@ async function handleDeleteQuery(
   return await getAllTodos(milestones);
 }
 
-async function getAllTodos(milestones: string[]): Promise<any> {
+async function getAllTodos(milestones: string[]): Promise<{
+  todos: unknown[];
+  count: number;
+  message: string;
+}> {
   const { data, error } = await supabaseAdmin
     .from('todos')
     .select('*')

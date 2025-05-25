@@ -4,14 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
   Send,
   Clock,
   CheckCircle,
   XCircle,
   Lightbulb,
-  Zap,
   Search,
   Plus,
   Edit,
@@ -24,14 +22,21 @@ interface Message {
   type: 'user' | 'system' | 'processing';
   timestamp: Date;
   sql?: string;
-  data?: any;
+  data?: string | Record<string, unknown>;
   milestones?: string[];
   success?: boolean;
+  queries?: {
+    original?: string;
+    preprocessed?: string;
+    intent?: string;
+    generatedSQL?: string;
+    validatedSQL?: string;
+  };
 }
 
 interface ChatInterfaceProps {
   onCommand: (command: string) => void;
-  onDataUpdate?: (data: any) => void; // Add callback for data updates
+  onDataUpdate?: (data: unknown) => void;
 }
 
 const SUGGESTION_TABS = [
@@ -99,10 +104,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [activeTab, setActiveTab] = useState('create');
   const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
-    // Auto-scroll to bottom when messages change
     scrollToBottom();
   }, [messages]);
 
@@ -202,144 +206,71 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       };
 
       setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      sendMessage();
-    }
-  };
-
-  const renderMilestones = (milestones: string[]) => (
-    <div className="mt-3 space-y-1 max-h-60 overflow-y-auto">
-      <div className="text-xs font-semibold text-gray-600 mb-2">
-        Processing Steps:
-      </div>
-      {milestones.map((milestone, index) => (
-        <div key={index} className="text-xs flex items-start gap-2">
-          {milestone.startsWith('✅') && (
-            <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
-          )}
-          {milestone.startsWith('❌') && (
-            <XCircle className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
-          )}
-          {milestone.startsWith('🔄') && (
-            <Clock className="h-3 w-3 text-blue-500 mt-0.5 flex-shrink-0" />
-          )}
-          {milestone.startsWith('🔎') && (
-            <div className="w-3 h-3 bg-purple-500 rounded-full mt-0.5 flex-shrink-0"></div>
-          )}
-          <span
-            className={`leading-tight ${
-              milestone.startsWith('✅')
-                ? 'text-green-600'
-                : milestone.startsWith('❌')
-                ? 'text-red-600'
-                : milestone.startsWith('🔄')
-                ? 'text-blue-600'
-                : milestone.startsWith('🔎')
-                ? 'text-purple-600 font-mono text-xs'
-                : 'text-gray-600'
-            }`}
-          >
-            {milestone}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-
-  const renderQueryDetails = (queries: any) => {
-    if (!queries) return null;
-
+  const renderMilestones = (milestones: string[]) => {
     return (
-      <div className="mt-3 p-2 bg-gray-50 rounded text-xs space-y-2">
-        <div className="font-semibold text-gray-700">Query Pipeline:</div>
-        {queries.original && (
-          <div>
-            <span className="font-medium text-blue-600">Original:</span>
-            <span className="ml-2 text-gray-700">"{queries.original}"</span>
+      <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+        <div className="text-blue-600 mb-1 font-semibold">
+          Processing Steps:
+        </div>
+        {milestones.map((milestone, index) => (
+          <div key={index} className="flex items-center gap-1 text-blue-800">
+            {milestone.startsWith('✅') && (
+              <CheckCircle className="h-3 w-3 text-green-500" />
+            )}
+            {milestone.startsWith('❌') && (
+              <XCircle className="h-3 w-3 text-red-500" />
+            )}
+            {milestone.startsWith('🔄') && (
+              <Clock className="h-3 w-3 text-yellow-500" />
+            )}
+            <span>{milestone}</span>
           </div>
-        )}
-        {queries.preprocessed && (
-          <div>
-            <span className="font-medium text-green-600">Preprocessed:</span>
-            <span className="ml-2 text-gray-700">"{queries.preprocessed}"</span>
-          </div>
-        )}
-        {queries.intent && (
-          <div>
-            <span className="font-medium text-purple-600">Intent:</span>
-            <span className="ml-2 text-gray-700">{queries.intent}</span>
-          </div>
-        )}
-        {queries.generatedSQL && (
-          <div>
-            <span className="font-medium text-orange-600">Generated SQL:</span>
-            <div className="ml-2 mt-1 p-2 bg-gray-800 rounded text-green-400 font-mono text-xs">
-              {queries.generatedSQL}
-            </div>
-          </div>
-        )}
-        {queries.validatedSQL &&
-          queries.validatedSQL !== queries.generatedSQL && (
-            <div>
-              <span className="font-medium text-red-600">Validated SQL:</span>
-              <div className="ml-2 mt-1 p-2 bg-gray-800 rounded text-yellow-400 font-mono text-xs">
-                {queries.validatedSQL}
-              </div>
-            </div>
-          )}
+        ))}
       </div>
     );
   };
 
-  const renderMessageContent = (message: Message) => {
+  const renderQueryDetails = (queries: Message['queries']) => {
+    if (!queries) return null;
+
     return (
-      <div
-        className={`max-w-[90%] p-3 rounded-lg ${
-          message.type === 'user'
-            ? 'bg-blue-500 text-white'
-            : message.type === 'processing'
-            ? 'bg-yellow-100 text-yellow-900 border border-yellow-300'
-            : message.success === false
-            ? 'bg-red-100 text-red-900 border border-red-300'
-            : 'bg-gray-100 text-gray-900'
-        }`}
-      >
-        <p className="text-sm">{message.text}</p>
-
-        {message.milestones && renderMilestones(message.milestones)}
-
-        {(message as any).queries &&
-          renderQueryDetails((message as any).queries)}
-
-        {message.sql && (
-          <div className="mt-3 p-2 bg-gray-800 rounded text-green-400 text-xs font-mono">
-            <div className="text-gray-400 mb-1 font-sans">Final SQL:</div>
-            {message.sql}
+      <div className="mt-3 p-2 bg-purple-50 rounded text-xs">
+        <div className="text-purple-600 mb-1 font-semibold">
+          Query Pipeline:
+        </div>
+        {queries.original && (
+          <div>
+            <strong>Original:</strong>&quot;{queries.original}&quot;
           </div>
         )}
-
-        {message.data && (
-          <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
-            <div className="text-blue-600 mb-1 font-semibold">
-              Query Result:
-            </div>
-            <div className="max-h-40 overflow-y-auto">
-              <pre className="text-blue-800 overflow-x-auto text-xs">
-                {JSON.stringify(message.data, null, 2)}
-              </pre>
-            </div>
+        {queries.preprocessed && (
+          <div>
+            <strong>Preprocessed:</strong>&quot;{queries.preprocessed}&quot;
           </div>
         )}
-
-        <p className="text-xs opacity-70 mt-2">
-          {message.timestamp.toLocaleTimeString()}
-        </p>
+        {queries.intent && (
+          <div>
+            <strong>Intent:</strong>
+            {queries.intent}
+          </div>
+        )}
+        {queries.generatedSQL && (
+          <div>
+            <strong>Generated SQL:</strong>
+            <pre className="text-purple-800 mt-1">{queries.generatedSQL}</pre>
+          </div>
+        )}
+        {queries.validatedSQL && (
+          <div>
+            <strong>Validated SQL:</strong>
+            <pre className="text-purple-800 mt-1">{queries.validatedSQL}</pre>
+          </div>
+        )}
       </div>
     );
   };
@@ -399,10 +330,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
       </div>
 
-      <div
-        ref={chatContainerRef}
-        className="flex-1 p-4 overflow-y-auto space-y-4 max-h-96"
-      >
+      <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-96">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -425,8 +353,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
               {message.milestones && renderMilestones(message.milestones)}
 
-              {(message as any).queries &&
-                renderQueryDetails((message as any).queries)}
+              {message.queries && renderQueryDetails(message.queries)}
 
               {message.sql && (
                 <div className="mt-3 p-2 bg-gray-800 rounded text-green-400 text-xs font-mono">
@@ -436,16 +363,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               )}
 
               {message.data && (
-                <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
-                  <div className="text-blue-600 mb-1 font-semibold">
-                    Query Result:
+                <>
+                  <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+                    <div className="text-blue-600 mb-1 font-semibold">
+                      Query Result:
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                      <pre className="text-blue-800 overflow-x-auto text-xs">
+                        {typeof message.data === 'string'
+                          ? message.data
+                          : JSON.stringify(message.data, null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                  <div className="max-h-40 overflow-y-auto">
-                    <pre className="text-blue-800 overflow-x-auto text-xs">
-                      {JSON.stringify(message.data, null, 2)}
-                    </pre>
-                  </div>
-                </div>
+                </>
               )}
 
               <p className="text-xs opacity-70 mt-2">
