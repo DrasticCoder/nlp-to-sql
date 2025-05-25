@@ -4,15 +4,15 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 );
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY!,
+  apiKey: process.env.GROQ_API_KEY || '',
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 interface QueryResponse {
   success: boolean;
@@ -48,6 +48,31 @@ export async function POST(request: NextRequest) {
   const queries: QueryResponse['queries'] = {};
 
   try {
+    // Check for required environment variables
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Database configuration missing',
+          milestones: ['❌ Database not configured'],
+          queries,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!process.env.GROQ_API_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'AI service configuration missing',
+          milestones: ['❌ AI services not configured'],
+          queries,
+        },
+        { status: 500 },
+      );
+    }
+
     const body = await request.json();
     const { query } = body;
 
