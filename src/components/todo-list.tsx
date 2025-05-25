@@ -15,6 +15,7 @@ interface TodoListProps {
   onUpdateTodo: (todo: Todo) => void;
   onDeleteTodo: (id: string) => void;
   onToggleTodo: (id: string) => void;
+  loading?: boolean;
 }
 
 export const TodoList: React.FC<TodoListProps> = ({
@@ -23,6 +24,7 @@ export const TodoList: React.FC<TodoListProps> = ({
   onUpdateTodo,
   onDeleteTodo,
   onToggleTodo,
+  loading = false,
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
@@ -59,7 +61,12 @@ export const TodoList: React.FC<TodoListProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Todo List</span>
-            <Button onClick={handleAddClick} size="sm" variant="outline">
+            <Button
+              onClick={handleAddClick}
+              size="sm"
+              variant="outline"
+              disabled={loading}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>
@@ -67,57 +74,63 @@ export const TodoList: React.FC<TodoListProps> = ({
         </CardHeader>
         <CardContent className="flex-1">
           <ScrollArea className="h-full">
-            <div className="space-y-3">
-              {todos.map((todo) => (
-                <div
-                  key={todo.id}
-                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Checkbox
-                    checked={todo.completed}
-                    onCheckedChange={() => onToggleTodo(todo.id)}
-                  />
-                  <div className="flex-1">
-                    <p
-                      className={`${
-                        todo.completed ? 'line-through text-gray-500' : ''
-                      }`}
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Loading todos...</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {todos.map((todo) => (
+                  <div
+                    key={todo.id}
+                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={todo.completed}
+                      onCheckedChange={() => onToggleTodo(todo.id)}
+                    />
+                    <div className="flex-1">
+                      <p
+                        className={`${
+                          todo.completed ? 'line-through text-gray-500' : ''
+                        }`}
+                      >
+                        {todo.title}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {todo.createdAt.toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Badge variant={todo.completed ? 'secondary' : 'default'}>
+                      {todo.completed ? 'Completed' : 'Pending'}
+                    </Badge>
+                    <Button
+                      onClick={() => handleEditClick(todo)}
+                      variant="ghost"
+                      size="sm"
                     >
-                      {todo.title}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {todo.createdAt.toLocaleDateString()}
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={() => onDeleteTodo(todo.id)}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                {todos.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No todos yet. Add one using natural language!</p>
+                    <p className="text-sm mt-2">
+                      Try: "Create a task to buy groceries"
                     </p>
                   </div>
-                  <Badge variant={todo.completed ? 'secondary' : 'default'}>
-                    {todo.completed ? 'Completed' : 'Pending'}
-                  </Badge>
-                  <Button
-                    onClick={() => handleEditClick(todo)}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => onDeleteTodo(todo.id)}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-
-              {todos.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No todos yet. Add one using natural language!</p>
-                  <p className="text-sm mt-2">
-                    Try: "Create a task to buy groceries"
-                  </p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </ScrollArea>
         </CardContent>
       </Card>
