@@ -3,106 +3,208 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Mic, MicOff, Send } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Send,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Lightbulb,
+  Zap,
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+} from 'lucide-react';
 
 interface Message {
   id: string;
   text: string;
-  type: 'user' | 'system';
+  type: 'user' | 'system' | 'processing';
   timestamp: Date;
   sql?: string;
+  data?: any;
+  milestones?: string[];
+  success?: boolean;
 }
 
 interface ChatInterfaceProps {
   onCommand: (command: string) => void;
+  onDataUpdate?: (data: any) => void; // Add callback for data updates
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onCommand }) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hello! I can help you manage your todos with natural language. Try saying "add a new task to buy groceries" or "mark the first task as complete".',
-      type: 'system',
-      timestamp: new Date(),
-    },
-  ]);
+const SUGGESTION_TABS = [
+  {
+    id: 'create',
+    label: 'Create',
+    icon: Plus,
+    color: 'bg-green-100 text-green-700 border-green-200',
+    suggestions: [
+      'Add a new task to buy groceries',
+      'Create a task to call my dentist',
+      'Make a task to prepare presentation',
+      'Add task to water the plants',
+      'Create new task to read a book',
+    ],
+  },
+  {
+    id: 'search',
+    label: 'Search',
+    icon: Search,
+    color: 'bg-blue-100 text-blue-700 border-blue-200',
+    suggestions: [
+      'Show all my tasks',
+      'Show completed tasks',
+      'Find tasks related to work',
+      'Show tasks containing meeting',
+      'List all pending tasks',
+    ],
+  },
+  {
+    id: 'update',
+    label: 'Update',
+    icon: Edit,
+    color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    suggestions: [
+      'Mark groceries task as done',
+      'Complete the first task',
+      'Set presentation task as finished',
+      'Update meeting task to call client',
+      'Change water plants to feed cat',
+    ],
+  },
+  {
+    id: 'delete',
+    label: 'Delete',
+    icon: Trash2,
+    color: 'bg-red-100 text-red-700 border-red-200',
+    suggestions: [
+      'Delete the groceries task',
+      'Remove completed tasks',
+      'Delete task about dentist',
+      'Remove all tasks with meeting',
+      'Delete the first task',
+    ],
+  },
+];
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  onCommand,
+  onDataUpdate,
+}) => {
   const [inputText, setInputText] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState<any>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('create');
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const speechRecognition = new (window as any).webkitSpeechRecognition();
-      speechRecognition.continuous = false;
-      speechRecognition.interimResults = false;
-      speechRecognition.lang = 'en-US';
-
-      speechRecognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInputText(transcript);
-        setIsListening(false);
-      };
-
-      speechRecognition.onerror = () => {
-        setIsListening(false);
-      };
-
-      speechRecognition.onend = () => {
-        setIsListening(false);
-      };
-
-      setRecognition(speechRecognition);
-    }
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Auto-scroll to bottom when messages change
+    scrollToBottom();
   }, [messages]);
 
-  const toggleListening = () => {
-    if (!recognition) return;
-
-    if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-    } else {
-      recognition.start();
-      setIsListening(true);
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleSuggestionClick = async (suggestion: string) => {
+    setInputText(suggestion);
+    setShowSuggestions(false);
+    // Auto-submit the suggestion
+    await sendMessage(suggestion);
+  };
 
+  const sendMessage = async (messageText?: string) => {
+    const textToSend = messageText || inputText;
+    if (!textToSend.trim() || isLoading) return;
+
+    setIsLoading(true);
+    setShowSuggestions(false);
+
+    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: inputText,
+      text: textToSend,
       type: 'user',
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setInputText('');
 
-    // Send command to parent
-    onCommand(inputText);
+    // Add processing message
+    const processingMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: '🔄 Processing your request...',
+      type: 'processing',
+      timestamp: new Date(),
+    };
 
-    // Simulate SQL generation and processing
-    setTimeout(() => {
+    setMessages((prev) => [...prev, processingMessage]);
+
+    try {
+      // Call the NLP-to-SQL API
+      const response = await fetch('/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: textToSend }),
+      });
+
+      const result = await response.json();
+
+      // Remove processing message and add result
+      setMessages((prev) =>
+        prev.filter((msg) => msg.id !== processingMessage.id),
+      );
+
       const systemResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: `Processing your request: "${inputText}". Generated SQL query and executed successfully.`,
+        id: (Date.now() + 2).toString(),
+        text: result.success ? `✅ ${result.message}` : `❌ ${result.error}`,
         type: 'system',
         timestamp: new Date(),
-        sql: `SELECT * FROM todos WHERE title LIKE '%${inputText.toLowerCase()}%';`,
+        sql: result.sql,
+        data: result.data,
+        milestones: result.milestones,
+        success: result.success,
+        ...(result.queries && { queries: result.queries }),
       };
-      setMessages((prev) => [...prev, systemResponse]);
-    }, 1000);
 
-    setInputText('');
+      setMessages((prev) => [...prev, systemResponse]);
+
+      // Trigger data update callback if successful
+      if (result.success && result.data && onDataUpdate) {
+        onDataUpdate(result.data);
+      }
+
+      // Trigger command callback for successful operations
+      if (result.success) {
+        onCommand(textToSend);
+      }
+    } catch (error) {
+      // Remove processing message and add error
+      setMessages((prev) =>
+        prev.filter((msg) => msg.id !== processingMessage.id),
+      );
+
+      const errorMessage: Message = {
+        id: (Date.now() + 3).toString(),
+        text: `❌ Error: ${
+          error instanceof Error ? error.message : 'Something went wrong'
+        }`,
+        type: 'system',
+        timestamp: new Date(),
+        success: false,
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -111,80 +213,291 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onCommand }) => {
     }
   };
 
-  return (
-    <Card className="flex flex-col">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          Natural Language Interface
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col flex-1">
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.type === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`max-w-[80%] p-3 rounded-lg ${
-                    message.type === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
-                >
-                  <p className="text-sm">{message.text}</p>
-                  {message.sql && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded text-green-400 text-xs font-mono">
-                      {message.sql}
-                    </div>
-                  )}
-                  <p className="text-xs opacity-70 mt-1">
-                    {message.timestamp.toLocaleTimeString()}
-                  </p>
-                </div>
-              </div>
-            ))}
+  const renderMilestones = (milestones: string[]) => (
+    <div className="mt-3 space-y-1 max-h-60 overflow-y-auto">
+      <div className="text-xs font-semibold text-gray-600 mb-2">
+        Processing Steps:
+      </div>
+      {milestones.map((milestone, index) => (
+        <div key={index} className="text-xs flex items-start gap-2">
+          {milestone.startsWith('✅') && (
+            <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
+          )}
+          {milestone.startsWith('❌') && (
+            <XCircle className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
+          )}
+          {milestone.startsWith('🔄') && (
+            <Clock className="h-3 w-3 text-blue-500 mt-0.5 flex-shrink-0" />
+          )}
+          {milestone.startsWith('🔎') && (
+            <div className="w-3 h-3 bg-purple-500 rounded-full mt-0.5 flex-shrink-0"></div>
+          )}
+          <span
+            className={`leading-tight ${
+              milestone.startsWith('✅')
+                ? 'text-green-600'
+                : milestone.startsWith('❌')
+                ? 'text-red-600'
+                : milestone.startsWith('🔄')
+                ? 'text-blue-600'
+                : milestone.startsWith('🔎')
+                ? 'text-purple-600 font-mono text-xs'
+                : 'text-gray-600'
+            }`}
+          >
+            {milestone}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderQueryDetails = (queries: any) => {
+    if (!queries) return null;
+
+    return (
+      <div className="mt-3 p-2 bg-gray-50 rounded text-xs space-y-2">
+        <div className="font-semibold text-gray-700">Query Pipeline:</div>
+        {queries.original && (
+          <div>
+            <span className="font-medium text-blue-600">Original:</span>
+            <span className="ml-2 text-gray-700">"{queries.original}"</span>
           </div>
-          <div ref={messagesEndRef} />
-        </ScrollArea>
+        )}
+        {queries.preprocessed && (
+          <div>
+            <span className="font-medium text-green-600">Preprocessed:</span>
+            <span className="ml-2 text-gray-700">"{queries.preprocessed}"</span>
+          </div>
+        )}
+        {queries.intent && (
+          <div>
+            <span className="font-medium text-purple-600">Intent:</span>
+            <span className="ml-2 text-gray-700">{queries.intent}</span>
+          </div>
+        )}
+        {queries.generatedSQL && (
+          <div>
+            <span className="font-medium text-orange-600">Generated SQL:</span>
+            <div className="ml-2 mt-1 p-2 bg-gray-800 rounded text-green-400 font-mono text-xs">
+              {queries.generatedSQL}
+            </div>
+          </div>
+        )}
+        {queries.validatedSQL &&
+          queries.validatedSQL !== queries.generatedSQL && (
+            <div>
+              <span className="font-medium text-red-600">Validated SQL:</span>
+              <div className="ml-2 mt-1 p-2 bg-gray-800 rounded text-yellow-400 font-mono text-xs">
+                {queries.validatedSQL}
+              </div>
+            </div>
+          )}
+      </div>
+    );
+  };
 
-        <Separator className="my-4" />
+  const renderMessageContent = (message: Message) => {
+    return (
+      <div
+        className={`max-w-[90%] p-3 rounded-lg ${
+          message.type === 'user'
+            ? 'bg-blue-500 text-white'
+            : message.type === 'processing'
+            ? 'bg-yellow-100 text-yellow-900 border border-yellow-300'
+            : message.success === false
+            ? 'bg-red-100 text-red-900 border border-red-300'
+            : 'bg-gray-100 text-gray-900'
+        }`}
+      >
+        <p className="text-sm">{message.text}</p>
 
+        {message.milestones && renderMilestones(message.milestones)}
+
+        {(message as any).queries &&
+          renderQueryDetails((message as any).queries)}
+
+        {message.sql && (
+          <div className="mt-3 p-2 bg-gray-800 rounded text-green-400 text-xs font-mono">
+            <div className="text-gray-400 mb-1 font-sans">Final SQL:</div>
+            {message.sql}
+          </div>
+        )}
+
+        {message.data && (
+          <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+            <div className="text-blue-600 mb-1 font-semibold">
+              Query Result:
+            </div>
+            <div className="max-h-40 overflow-y-auto">
+              <pre className="text-blue-800 overflow-x-auto text-xs">
+                {JSON.stringify(message.data, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs opacity-70 mt-2">
+          {message.timestamp.toLocaleTimeString()}
+        </p>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="flex flex-col h-full">
+      <div className="p-4 border-b">
+        <h2 className="text-lg font-semibold mb-2">
+          Natural Language Interface
+        </h2>
+        {showSuggestions && messages.length === 0 && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Hello! I can help you manage your todos with natural language.
+              Choose a category below or type your own command.
+            </p>
+
+            {/* Suggestion Tabs */}
+            <div className="flex gap-2 mb-3">
+              {SUGGESTION_TABS.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1 px-3 py-1 text-xs rounded-md border transition-colors ${
+                      activeTab === tab.id
+                        ? tab.color
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="h-3 w-3" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Suggestions */}
+            <div className="grid gap-2">
+              {SUGGESTION_TABS.find(
+                (tab) => tab.id === activeTab,
+              )?.suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="text-left p-2 text-sm rounded border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-3 w-3 text-gray-400" />
+                    {suggestion}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        ref={chatContainerRef}
+        className="flex-1 p-4 overflow-y-auto space-y-4 max-h-96"
+      >
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${
+              message.type === 'user' ? 'justify-end' : 'justify-start'
+            }`}
+          >
+            <div
+              className={`max-w-[90%] p-3 rounded-lg ${
+                message.type === 'user'
+                  ? 'bg-blue-500 text-white'
+                  : message.type === 'processing'
+                  ? 'bg-yellow-100 text-yellow-900 border border-yellow-300'
+                  : message.success === false
+                  ? 'bg-red-100 text-red-900 border border-red-300'
+                  : 'bg-gray-100 text-gray-900'
+              }`}
+            >
+              <p className="text-sm">{message.text}</p>
+
+              {message.milestones && renderMilestones(message.milestones)}
+
+              {(message as any).queries &&
+                renderQueryDetails((message as any).queries)}
+
+              {message.sql && (
+                <div className="mt-3 p-2 bg-gray-800 rounded text-green-400 text-xs font-mono">
+                  <div className="text-gray-400 mb-1 font-sans">Final SQL:</div>
+                  {message.sql}
+                </div>
+              )}
+
+              {message.data && (
+                <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+                  <div className="text-blue-600 mb-1 font-semibold">
+                    Query Result:
+                  </div>
+                  <div className="max-h-40 overflow-y-auto">
+                    <pre className="text-blue-800 overflow-x-auto text-xs">
+                      {JSON.stringify(message.data, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs opacity-70 mt-2">
+                {message.timestamp.toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="p-4 border-t">
         <div className="flex gap-2">
           <Input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type your command... (e.g., 'add a task to call mom')"
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="Type your natural language command..."
+            disabled={isLoading}
             className="flex-1"
+            onFocus={() => setShowSuggestions(false)}
           />
           <Button
-            onClick={toggleListening}
-            variant={isListening ? 'destructive' : 'outline'}
-            size="icon"
+            onClick={() => sendMessage()}
+            disabled={isLoading || !inputText.trim()}
+            size="sm"
           >
-            {isListening ? (
-              <MicOff className="h-4 w-4" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </Button>
-          <Button onClick={sendMessage} size="icon">
             <Send className="h-4 w-4" />
           </Button>
         </div>
 
-        {isListening && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            Listening...
+        {messages.length > 0 && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => {
+                setMessages([]);
+                setShowSuggestions(true);
+                setInputText('');
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Clear Chat
+            </button>
+            <button
+              onClick={() => setShowSuggestions(!showSuggestions)}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              {showSuggestions ? 'Hide' : 'Show'} Suggestions
+            </button>
           </div>
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 };

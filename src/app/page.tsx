@@ -74,6 +74,19 @@ const Page = () => {
     console.log('Processing command:', command);
   };
 
+  const handleDataUpdate = (data: any) => {
+    // Update todos list when chat interface reports successful operations
+    if (data && data.todos) {
+      const mappedTodos: Todo[] = data.todos.map((todo: any) => ({
+        id: todo.id,
+        title: todo.title,
+        completed: todo.completed,
+        createdAt: new Date(todo.created_at),
+      }));
+      setTodos(mappedTodos);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
@@ -92,7 +105,10 @@ const Page = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
-          <ChatInterface onCommand={handleCommand} />
+          <ChatInterface
+            onCommand={handleCommand}
+            onDataUpdate={handleDataUpdate}
+          />
           <TodoList
             todos={todos}
             onAddTodo={handleAddTodo}
