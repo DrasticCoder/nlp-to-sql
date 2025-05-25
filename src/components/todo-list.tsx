@@ -98,7 +98,9 @@ export const TodoList: React.FC<TodoListProps> = ({
                         {todo.title}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {todo.createdAt.toLocaleDateString()}
+                        {todo.createdAt
+                          ? new Date(todo.createdAt).toLocaleDateString()
+                          : ''}
                       </p>
                     </div>
                     <Badge variant={todo.completed ? 'secondary' : 'default'}>
